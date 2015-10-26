@@ -1,0 +1,59 @@
+.component-modal-dialog{
+	position: fixed;
+    *position: absolute;
+	left: 0; top: 0;
+	width: 100%;
+	height: 100%;
+    z-index: 200;
+}
+.component-modal-dialog .mask{
+	position: fixed;
+    *position: absolute;
+	left: 0;
+	top: 0;
+	width: 100%;
+	height: 100%;
+	background-color: #aaa;
+    opacity: 0.8; 
+    filter:alpha(opacity=80);
+    _filter:alpha(opacity=80);
+    z-index: 201;
+}
+.component-modal-dialog .dialog{
+	position: fixed;
+    *position: absolute;
+	left: 0;
+	top: 0;
+	min-width: 200px;
+	min-height: 100px;
+	background-color: #fff;
+	border:#ccc 1px solid;
+    z-index: 202;
+}
+.component-modal-dialog .dialog .modal-head{
+	height: 35px; line-height: 35px; position: relative; 
+	border-bottom:#ccc 1px solid;
+}
+.component-modal-dialog .dialog .modal-head .title{
+	padding-left: 10px; padding-right: 40px; font-size: 16px;
+}
+.component-modal-dialog .dialog .modal-head .close-button{
+	position: absolute; right: 10px; top: 0px; font-size: 26px; cursor: pointer;
+}
+
+.component-alert{
+    padding: 20px;
+}
+.component-alert-content{
+    padding: 20px;
+}
+.component-confirm{
+    padding: 40px;
+}
+.component-confirm-button-area{
+    text-align: center; padding: 10px;
+}
+.component-confirm-button-area a{
+    cursor: pointer;
+    margin-right: 5px;
+}

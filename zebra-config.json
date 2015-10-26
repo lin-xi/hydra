@@ -1,0 +1,20 @@
+{
+	"base": "./src",
+	"output": "./dist",
+	"rules": {
+		"js": {
+			"compile": false,
+			"uglify": false,
+			"pack": {
+				"hydra.js": [
+					"util.js",
+					"virtual-dom.js",
+					"html2vdom.js",
+					"mustang.js",
+					"koala.js"
+				]
+			}
+		}
+	},
+	"clean": true
+}
