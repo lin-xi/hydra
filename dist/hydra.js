@@ -372,6 +372,50 @@ var DomEvent = {
 		} else {
 			evt.returnValue = false;
 		}
+	},
+	swipeLeft: function (elem, handler) {
+		this.swipe(elem, function (e, fixEvent) {
+			if (fixEvent.direction === DIR.LEFT) {
+				handler.apply(this, arguments);
+			}
+		});
+	},
+	swipe: function (elem, handler) {
+		startTrack();
+		var isFired = false;
+		var swipDir = DIR.NONE;
+		dispatcher.on('touchstart', function () {
+			isFired = false;
+		});
+		this.on(elem, 'touchmove', function (e, fixEvent) {
+			if (isFired || (Math.abs(fixEvent.xSpeed) < 1 && Math.abs(fixEvent.ySpeed) < 1)) {
+				return;
+			}
+			fixEvent.direction = getDirectionFromXY(fixEvent.dx, fixEvent.dy);
+			handler.apply(this, arguments);
+			isFired = true;
+		});
+	},
+	swipeRight: function (elem, handler) {
+		this.swipe(elem, function (e, fixEvent) {
+			if (fixEvent.direction === DIR.LEFT) {
+				handler.apply(this, arguments);
+			}
+		});
+	},
+	swipeTop: function (elem, handler) {
+		this.swipe(elem, function (e, fixEvent) {
+			if (fixEvent.direction === DIR.TOP) {
+				handler.apply(this, arguments);
+			}
+		});
+	},
+	swipeBottom: function (elem, handler) {
+		this.swipe(elem, function (e, fixEvent) {
+			if (fixEvent.direction === DIR.BOTTOM) {
+				handler.apply(this, arguments);
+			}
+		});
 	}
 };
 

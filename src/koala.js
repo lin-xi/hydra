@@ -174,7 +174,7 @@
 	Scope.prototype.dispatch = function () {
 
 	};
-	Scope.prototype.setState = function () {
+	Scope.prototype.setState = function (data) {
 		this.apply();
 	};
 	Scope.prototype.apply = function () {

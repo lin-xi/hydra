@@ -642,8 +642,8 @@
 				var key, val, filter;
 				if (s1.indexOf('|') > 0) {
 					var parts = s1.split('|');
-					key = _.trim(parts[0]),
-						filter = _.trim(parts[1]);
+					key = _.trim(parts[0]);
+					filter = _.trim(parts[1]);
 				} else if (s1.indexOf('>') == 0) {
 					key = s1.slice(1);
 				} else {
