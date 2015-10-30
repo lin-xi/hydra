@@ -174,7 +174,17 @@
 	Scope.prototype.dispatch = function () {
 
 	};
+	Scope.prototype.getState = function () {
+		var controller = _moduleBus[this._controller];
+		var states = _controllerBus[controller.name].states;
+		return states
+	};
 	Scope.prototype.setState = function (data) {
+		var controller = _moduleBus[this._controller];
+		var states = _controllerBus[controller.name].states;
+		_.each(states, function (i, item) {
+			item.setState(data);
+		});
 		this.apply();
 	};
 	Scope.prototype.apply = function () {
@@ -183,6 +193,7 @@
 		if (controller && controller.state == STATE.LOADED) {
 			if (_controllerBus[controller.name]) {
 				var states = _controllerBus[controller.name].states;
+
 				if (states) {
 					_.each(states, function (i, item) {
 						if (tpl && tpl.render) {
@@ -199,7 +210,10 @@
 	function newState(func) {
 		var object = {
 			setState: function (data) {
-				this.state = data;
+				for(var key in data) {
+					this.state[key] = data[key];
+				}
+				//this.state = data;
 				func();
 			},
 			getState: function (data) {

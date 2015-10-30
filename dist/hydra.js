@@ -3770,8 +3770,8 @@ LRUCache.prototype.get = function (path) {
 				var key, val, filter;
 				if (s1.indexOf('|') > 0) {
 					var parts = s1.split('|');
-					key = _.trim(parts[0]),
-						filter = _.trim(parts[1]);
+					key = _.trim(parts[0]);
+					filter = _.trim(parts[1]);
 				} else if (s1.indexOf('>') == 0) {
 					key = s1.slice(1);
 				} else {
@@ -4121,7 +4121,14 @@ LRUCache.prototype.get = function (path) {
 	Scope.prototype.dispatch = function () {
 
 	};
-	Scope.prototype.setState = function () {
+	Scope.prototype.setState = function (data) {
+		var controller = _moduleBus[this._controller];
+		var states = _controllerBus[controller.name].states;
+	//	for(var key in data){
+			_.each(states, function (i, item) {
+				item.setState(data)
+			})
+//		}
 		this.apply();
 	};
 	Scope.prototype.apply = function () {
@@ -4130,6 +4137,7 @@ LRUCache.prototype.get = function (path) {
 		if (controller && controller.state == STATE.LOADED) {
 			if (_controllerBus[controller.name]) {
 				var states = _controllerBus[controller.name].states;
+
 				if (states) {
 					_.each(states, function (i, item) {
 						if (tpl && tpl.render) {
