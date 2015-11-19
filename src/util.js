@@ -80,7 +80,9 @@ var _ = (function () {
 		if (!_.isObject(obj)) return obj;
 		_.each(Array.prototype.slice.call(arguments, 1), function (i, source) {
 			for (var prop in source) {
-				obj[prop] = source[prop];
+				if(source[prop]){
+					obj[prop] = source[prop];
+				}
 			}
 		});
 		return obj;
@@ -105,6 +107,18 @@ var _ = (function () {
 			temp.push(key + '=' + encodeURIComponent(item));
 		});
 		return temp.join('&');
+	};
+	_.getUrlParam = function (key) {
+		var str = location.search;
+		var param = {};
+		if (str) {
+			str = str.slice(1).split('&');
+			str.forEach(function (item) {
+				var items = item.split('=');
+				param[items[0]] = decodeURIComponent(items[1]);
+			});
+		}
+		return param[key];
 	};
 	_.md5 = function (n) {
 		var nc = n || 3,
@@ -309,22 +323,26 @@ var DomEvent = {
 			listener(e, src);
 		}, useCapture]);
 	},
-	delegate: function (element, selector, event, callback) {
+	delegate: function (element, selector, eventType, callback) {
 		var me = this;
 		if (!me._events) {
 			me._events = {};
 		}
-		var capture = false;
-		if (event == 'blur' || event == 'focus') {
-			event = event == 'blur' ? 'focusout' : event == 'focus' ? 'focusin' : event
+		var id = element.id;
+		if (!me._events[id]) {
+			me._events[id] = {};
 		}
-		if (!me._events[event]) {
-			me._events[event] = [{
+		var capture = false;
+		if (eventType == 'blur' || eventType == 'focus') {
+			eventType = eventType == 'blur' ? 'focusout' : eventType == 'focus' ? 'focusin' : eventType;
+		}
+		if (!me._events[id][eventType]) {
+			me._events[id][eventType] = [{
 				selector: selector,
 				fn: callback
 			}];
-			element.addEventListener(event, function (e) {
-				var de = me._events[event];
+			element.addEventListener(eventType, function (e) {
+				var de = me._events[id][eventType];
 				var tar = e.target;
 				for (var i = 0, len = de.length; i < len; i++) {
 					var item = de[i];
@@ -342,7 +360,7 @@ var DomEvent = {
 				}
 			}, capture);
 		} else {
-			me._events[event].push({
+			me._events[id][eventType].push({
 				selector: selector,
 				fn: callback
 			});

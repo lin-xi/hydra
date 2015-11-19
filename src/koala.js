@@ -2,6 +2,7 @@
 
 	var _moduleBus = {}, //模块缓存
 		_controllerBus = {}, //控制器缓存
+		_viewBus = {}, //视图缓存
 		_runStack = [], //运行栈,只放controller
 		_parseTree = {}, //解析树
 		_parseBus = {}, //记录解析过的scope
@@ -10,6 +11,7 @@
 		_currentController = null, //当前的控制器
 		_cssBus = {}, //css缓存
 		_currentPath; //当前路由
+
 
 	var STATE = {
 		INIT: 0,
@@ -45,6 +47,7 @@
 			name: className,
 			type: 'controller',
 			state: STATE.INIT,
+			states: {},
 			dependences: dependences,
 			fn: func
 		};
@@ -73,6 +76,7 @@
 			name: className,
 			type: 'store',
 			state: STATE.INIT,
+			states: {},
 			dependences: dependences,
 			fn: func
 		};
@@ -138,11 +142,8 @@
 		this._routParms = {};
 	};
 	Mvc.prototype._route = function (path) {
-		_currentPath = path;
 		var rt = _config.router[path];
 		if (rt && rt.template) {
-			var tpl = Mustang.load(_config.base + '/' + rt.template);
-
 			//调用controller的析构函数
 			if (_currentController) {
 				var ctrl = _controllerBus[_currentController];
@@ -150,8 +151,17 @@
 					ctrl.scope.finalize && ctrl.scope.finalize();
 				}
 			}
+			_currentPath = path;
+
+			var viewNode = rt.view || _config.view;
+			if (_viewBus[viewNode]) {
+				delete _viewBus[viewNode];
+			}
+			_viewBus[viewNode] = new View(viewNode, rt.template);
+			var tpl = Mustang.load(_config.base + '/' + rt.template);
+
 			//执行controller
-			runController(rt.controller, tpl);
+			runController(rt.controller, tpl, _viewBus[viewNode]);
 		}
 	};
 	Mvc.prototype.getCurrentRoute = function () {
@@ -162,10 +172,16 @@
 	};
 
 	/*--------------------------------------------------------*/
+	function View(seletor, template, node) {
+		this.template = template;
+		this.seletor = seletor;
+	}
+	/*--------------------------------------------------------*/
 	function Scope(id, tpl, controller) {
 		this._id = id;
 		this._tpl = tpl;
 		this._controller = controller;
+		this.eventPipe = EventPipe.pipe(tpl.tplName + '_innerPipe');
 	}
 
 	Scope.prototype.on = function () {
@@ -175,16 +191,20 @@
 
 	};
 	Scope.prototype.getState = function () {
-		var controller = _moduleBus[this._controller];
-		var states = _controllerBus[controller.name].states;
-		return states
+		var states = _controllerBus[this._controller].states;
+		return states[this._controller];
+	};
+	Scope.prototype.getMergedState = function () {
+		var states = _controllerBus[this._controller].states;
+		var lastState = {};
+		for (var k in states) {
+			_.extend(lastState, states[k].state);
+		}
+		return lastState;
 	};
 	Scope.prototype.setState = function (data) {
-		var controller = _moduleBus[this._controller];
-		var states = _controllerBus[controller.name].states;
-		_.each(states, function (i, item) {
-			item.setState(data);
-		});
+		var states = _controllerBus[this._controller].states;
+		_.extend(states[this._controller].state, data);
 		this.apply();
 	};
 	Scope.prototype.apply = function () {
@@ -192,51 +212,14 @@
 		var controller = _moduleBus[this._controller];
 		if (controller && controller.state == STATE.LOADED) {
 			if (_controllerBus[controller.name]) {
-				var states = _controllerBus[controller.name].states;
-
-				if (states) {
-					_.each(states, function (i, item) {
-						if (tpl && tpl.render) {
-							if (item.state) {
-								tpl.render(_config.view, item.state);
-							}
-						}
-					})
+				var view = _controllerBus[controller.name].view;
+				var state = this.getMergedState();
+				if (state) {
+					tpl.render(view, state);
 				}
 			}
 		}
 	};
-	/*--------------------------------------------------------*/
-	function newState(func) {
-		var object = {
-			setState: function (data) {
-				for(var key in data) {
-					this.state[key] = data[key];
-				}
-				//this.state = data;
-				func();
-			},
-			getState: function (data) {
-				return this.state;
-			}
-		};
-		// function observer() {
-		// 	console.log(changes);
-		// 	func();
-		// }
-		// Object.observe(object, observer);
-		//Object.deliverChangeRecords(observer);
-		return object;
-	}
-	var StoreUtil = {
-		get: function (url, param, func) {
-			_.ajax.get(url, param, func);
-		},
-		post: function (url, param, func) {
-			_.ajax.post(url, param, func);
-		}
-	};
-	/*--------------------------------------------------------*/
 	/*--------------------------------------------------------*/
 	//反射
 	function newInstance(strClass) {
@@ -352,11 +335,11 @@
 	function checkRunStack(name) {
 		if (_runStack.length > 0 && _runStack[0].controller == name) {
 			var run = _runStack.pop();
-			runController(run.controller, run.tpl);
+			runController(run.controller, run.tpl, run.view);
 		}
 	}
 
-	function runController(controllerName, tpl) {
+	function runController(controllerName, tpl, view) {
 		var controller = _moduleBus[controllerName];
 		if (controller && controller.state == STATE.LOADED) {
 			//每次都先执行rootController
@@ -364,10 +347,16 @@
 			// 	runController('RootController');
 			// }
 			var id = _.md5() + '_' + _.uuid();
-			var scope = new Scope(id, tpl, controller.name);
-			_controllerBus[controller.name] = {
-				scope: scope
+			var scope = new Scope(id, tpl, controllerName);
+			_controllerBus[controllerName] = {
+				scope: scope,
+				view: view,
+				states: {}
 			};
+			var sta = newState(controllerName, function () {
+				_controllerBus[controllerName].scope.apply();
+			});
+			_controllerBus[controllerName].states[controllerName] = sta;
 
 			if (controller.dependences) {
 				var args = [];
@@ -378,12 +367,13 @@
 			}
 
 			controller.fn.apply(scope, args);
-			_currentController = controller.name;
+			_currentController = controllerName;
 			scope.apply();
 		} else {
 			_runStack.push({
 				controller: controllerName,
-				tpl: tpl
+				tpl: tpl,
+				view: view
 			});
 			loadController(controllerName);
 		}
@@ -395,16 +385,17 @@
 				var args = [];
 				if (mod.dependences) {
 					_.each(mod.dependences, function (idx, item) {
-						switch (_moduleBus[item].type) {
+						var modItem = _moduleBus[item];
+						switch (modItem.type) {
 							case 'plugin':
-								args.push(injectModule(_moduleBus[item]));
+								args.push(injectModule(modItem));
 								break;
 							case 'store':
-								var sta = newState(function () {
+								var sta = newState(modItem.name, function () {
 									_controllerBus[controllerName].scope.apply();
 								});
-								_controllerBus[controllerName].state = sta;
-								args.push(_moduleBus[item].fn.apply(StateUtil, [state]));
+								_controllerBus[controllerName].states[modItem.name] = sta;
+								args.push(modItem.fn.apply(StoreUtil, [sta]));
 								break;
 						}
 					});
@@ -416,13 +407,13 @@
 						break;
 					case 'store':
 						var ctrl = _controllerBus[controllerName];
-						var sta = newState(function () {
+						var sta = newState(mod.name, function () {
 							ctrl.scope.apply();
 						});
 						if (!ctrl.states) {
-							ctrl.states = [];
+							ctrl.states = {};
 						}
-						ctrl.states.push(sta);
+						ctrl.states[mod.name] = sta;
 						return mod.fn.apply(StoreUtil, [sta]);
 						break;
 				}

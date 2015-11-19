@@ -5,7 +5,7 @@
 	var pipe = EventPipe.pipe('compile');
 
 	(function () {
-		var TAGS = '|template|a|b|body|br|button|center|cite|code|comment|dd|div|dl|dt|em|embed|fieldset|font|form|frame|head|hr|html|i|iframe|img|input|label|legend|li|link|meta|ol|option|p|pre|script|select|span|strong|style|sub|sup|table|tbody|td|textarea|th|thead|tr|ul|';
+		var TAGS = '|template|a|b|body|br|button|center|cite|code|comment|dd|div|dl|dt|em|embed|fieldset|font|form|frame|head|hr|html|i|iframe|img|input|label|legend|li|link|meta|ol|option|p|pre|script|select|span|strong|style|sub|sup|table|tbody|td|textarea|th|thead|tr|ul|h1|h2|h3|h4|h5|h6|';
 		var regTpl = /<template\s*name\s*=\s*"([^\"]+)"\s*>(((?!<\/template>).)*)<\/template>/g;
 		var regInclude = /\{\{#>\s*(.*?)\}\}/;
 		var regTranscludeTag = /\{\{>transclude\}\}/;
@@ -21,8 +21,7 @@
 			return new MTemplate(path);
 		};
 
-		Mustang.render = function (tpl, data, fn) {
-			var text = tpl;
+		Mustang.render = function (text, data, fn) {
 			var name = getTemplateName(text);
 			if (!Template[name]) {
 				Template[name] = new XTemplate(name);
@@ -60,7 +59,9 @@
 				if (resourceMap && resourceMap['/' + tplJs]) {
 					tplJs = resourceMap['/' + tplJs].slice(1);
 				}
-				_.ajax.get(tpl, {}, function (text) {
+				_.ajax.get(tpl, {
+					t: new Date().getTime()
+				}, function (text) {
 					// tplCache[tpl] = text;
 					var name = me.tplName = getTemplateName(text);
 					if (!Template[name]) {
@@ -77,20 +78,27 @@
 			}
 		};
 
-		MTemplate.prototype.render = function (nodeSelector, data) {
+		MTemplate.prototype.render = function (view, data) {
 			var me = this;
-			me.toRender = true;
-			if (!me._node) {
-				var node = document.querySelector(nodeSelector);
-				var innerDiv = document.createElement('div');
-				innerDiv.style.width = '100%';
-				innerDiv.style.height = '100%';
-				node.appendChild(innerDiv);
 
-				me._node = node;
-				me._container = innerDiv;
-			}
+			me.toRender = true;
 			me.renderData = data;
+			if (!me.view) {
+				me.view = {};
+			}
+			if (me.view.template != view.template) {
+				var node = document.querySelector(view.seletor);
+				var _container = document.createElement('div');
+				_container.style.width = '100%';
+				_container.style.height = '100%';
+				node.innerHTML = "";
+				node.appendChild(_container);
+				me.view = view;
+				me.view.container = _container;
+				me.viewChange = true;
+			} else {
+				me.viewChange = false;
+			}
 			if (me.loaded) {
 				me._loadDone();
 			}
@@ -101,7 +109,7 @@
 			if (me.toRender) {
 				if (!me.binded) {
 					me.binded = true;
-					Template[me.tplName].bindEvent(me._container);
+					Template[me.tplName].bindEvent(me.view.container);
 				}
 				me._render(me.loadedText, me.renderData);
 			}
@@ -145,33 +153,33 @@
 		MTemplate.prototype._renderComplete = function (text) {
 			var me = this;
 			if (useVirtualDom) {
-				if (!me.vTree) {
-					me.vTree = newVirtualDom(text);
-					me._container.innerHTML = text;
+				if (!me.view.vTree || me.viewChange) {
+					me.view.vTree = newVirtualDom(text);
+					me.view.container.appendChild(virtualDom.create(me.view.vTree));
 					pipe.write('renderComplete');
 				} else {
-					if (me.timer) {
-						clearTimeout(me.timer);
-					}
-					me.timer = setTimeout(function () {
-						var newTree = newVirtualDom(text);
-						var patches = virtualDom.diff(me.vTree, newTree);
-						virtualDom.patch(me._container, patches);
-						me.vTree = newTree;
-						pipe.write('renderComplete');
-					}, 60);
+					var newTree = newVirtualDom(text);
+					var patches = virtualDom.diff(me.view.vTree, newTree);
+					virtualDom.patch(me.view.container.firstChild, patches);
+					me.view.vTree = newTree;
+					pipe.write('renderComplete');
 				}
 			} else {
-				me._container.innerHTML = text;
+				me.view.container.innerHTML = text;
 			}
+		};
 
-			function newVirtualDom(html) {
-				console.time('html2vdom');
-				html = '<div style="width:100%; height:100%">' + html + '</div>';
-				var vdoms = window.vdomParser(html);
-				console.timeEnd('html2vdom');
-				return vdoms;
-			}
+		function newVirtualDom(html) {
+			console.time('html2vdom');
+			// html = '<div id="virtual-dom" style="width:100%; height:100%">' + html + '</div>';
+			var vdoms = window.vdomParser(html);
+			console.timeEnd('html2vdom');
+			return vdoms;
+		}
+
+		MTemplate.prototype._synchronizeDom = function () {
+			var me = this;
+			me.view.vTree = newVirtualDom(me.view.container.innerHTML);
 		};
 
 		MTemplate.prototype._renderTemplate = function () {
@@ -327,15 +335,16 @@
 					props['transclude'] = transclude;
 				}
 				var comId = 'com_' + _.md5();
-				var com = Component[compoName].new(comId, props.name, props, me.tplName);
-				com.render(function (text) {
-					me._setQueueItem(id, {
-						content: '<component id="' + comId + '">' + text + '</component>'
+				Component[compoName].new(comId, props.name, props, me.tplName, function (com) {
+					com.render(function (text) {
+						me._setQueueItem(id, {
+							content: '<component id="' + comId + '">' + text + '</component>'
+						});
+						// //再替换一层
+						// var qi = me.queue.pop();
+						// me._setQueueItemContent(qi.parent, qi.placeholder, qi.content);
+						me._renderTemplate();
 					});
-					// //再替换一层
-					// var qi = me.queue.pop();
-					// me._setQueueItemContent(qi.parent, qi.placeholder, qi.content);
-					me._renderTemplate();
 				});
 			}
 		};
@@ -403,6 +412,7 @@
 			} else {
 				eachData = data[results[1]];
 			}
+			eachData = eachData || [];
 
 			var fid = _.md5();
 			me.queue.push({
@@ -500,7 +510,9 @@
 			if (me.tplCache[tpl]) {
 				compileInclude(me.tplCache[tpl]);
 			} else {
-				_.ajax.get(tpl, {}, function (txt) {
+				_.ajax.get(tpl, {
+					t: new Date().getTime()
+				}, function (txt) {
 					txt = toOneLine(txt);
 					me.tplCache[tpl] = txt;
 
@@ -661,6 +673,8 @@
 					_.each(ks, function (i, k) {
 						i > 0 && val && (val = val[k]);
 					});
+				} else if (key == '$item') {
+					val = data;
 				} else {
 					val = data[key];
 				}
@@ -671,8 +685,10 @@
 						console.error('filter [' + filter + '] is not exist');
 					}
 				}
+				val === undefined && (val = "");
 				return val;
 			});
+
 			return result;
 		};
 		XTemplate.prototype.eval = function (exp, data, global) {
@@ -683,10 +699,8 @@
 			return eval("'" + (data[mats[1]] || global[mats[1]] || mats[1]) + "'" + mats[2] + mats[3]);
 		};
 		XTemplate.prototype.bindEvent = function (node) {
-			if (node) {
-				this.node = node;
-			} else {
-				node = this.node;
+			if (!node) {
+				console.error("[node] can't be null");
 			}
 			for (var key in this._events) {
 				var eve = this._events[key];
@@ -735,15 +749,27 @@
 		function XComponent(name) {
 			this.name = name;
 		}
-		XComponent.prototype.new = function (id, instance, props, tplName) {
+		XComponent.prototype.new = function (id, instance, props, tplName, func) {
 			var na = _.upFirstLetter(this.name);
 			var opts = Component[na].opts;
 			console.log('>', this.name);
-			if (props) {
-				_.extend(opts.props, props);
+			if (opts.initState) {
+				opts.initState.call(opts, function () {
+					if (props) {
+						_.extend(opts.props, props);
+					}
+					var tpl = Template[tplName];
+					var mc = new MComponet(id, instance, opts, tpl);
+					func && func(mc);
+				});
+			} else {
+				if (props) {
+					_.extend(opts.props, props);
+				}
+				var tpl = Template[tplName];
+				var mc = new MComponet(id, instance, opts, tpl);
+				func && func(mc);
 			}
-			var tpl = Template[tplName];
-			return new MComponet(id, instance, opts, tpl);
 		};
 
 		XComponent.prototype.newInstance = function (props) {
@@ -775,14 +801,18 @@
 			var me = this;
 			pipe.receive({
 				'renderComplete': function () {
+					console.log(me.id, 'pipe receive');
 					var el = document.querySelector('#' + me.id);
 					if (!el) return;
-					me.context = {
-						'$el': el,
-						props: me.opts.props
-					};
+					me.opts.$el = el;
+					me.opts.name = me.name;
+
+					var ctpl = app.getCurrentTemplate();
+					me.opts.eventPipe = EventPipe.pipe(ctpl.tplName + '_innerPipe');
+
 					var render = me.opts.render;
-					render.call(me.context);
+					render.call(me.opts);
+					ctpl._synchronizeDom();
 					me.bindEvent();
 				}
 			});
@@ -794,15 +824,14 @@
 			me.binded = true;
 
 			var opts = me.opts;
-			var comEvents = opts.events.call(me.context);
+			var comEvents = opts.events.call(opts);
 			var evts = {};
 			for (var e in comEvents) {
-				var ne = '#' + me.id + ' ' + e;
-				evts[ne] = comEvents[e];
+				evts[e] = comEvents[e];
 			}
+			var node = document.querySelector('#' + me.id);
 			me.template.events(evts);
-			var ctpl = app.getCurrentTemplate();
-			me.template.bindEvent(ctpl._node);
+			me.template.bindEvent(node);
 		};
 
 		MComponet.prototype.render = function (fn) {

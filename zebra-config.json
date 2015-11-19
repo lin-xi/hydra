@@ -1,13 +1,14 @@
 {
 	"base": "./src",
-	"output": "./dist",
+	"output": "./dest",
 	"rules": {
 		"js": {
 			"compile": false,
-			"uglify": false,
+			"uglify": true,
 			"pack": {
 				"hydra.js": [
 					"util.js",
+					"state.js",
 					"virtual-dom.js",
 					"html2vdom.js",
 					"mustang.js",
