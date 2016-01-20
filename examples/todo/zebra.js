@@ -242,7 +242,7 @@ function runJsPack() {
 
 function runCssPack() {
     var css = config.rules.css;
-    if (!css.pack) {
+    if (!css || !css.pack) {
         run();
         return;
     }
