@@ -1,6 +1,6 @@
 
-homepage 
-[](http://lin-xi.github.io/hydra/)
+homepage  
+http://lin-xi.github.io/hydra/
 
 
 hydra 
